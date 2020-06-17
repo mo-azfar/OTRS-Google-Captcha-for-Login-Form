@@ -30,7 +30,7 @@
 
 Simulation: Login without completing captcha    
 
-Customer Portal:
+Customer Portal:  
 [![Capture2.png](https://i.postimg.cc/DwcS2yp9/Capture2.png)](https://postimg.cc/hXfDsgBs)  
 
 Agent Portal:  
