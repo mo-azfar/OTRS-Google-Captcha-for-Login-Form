@@ -34,4 +34,5 @@ Customer Portal:
 [![Capture2.png](https://i.postimg.cc/DwcS2yp9/Capture2.png)](https://postimg.cc/hXfDsgBs)  
 
 Agent Portal:  
-[![agent.png](https://i.postimg.cc/9XZQb7rP/agent.png)](https://postimg.cc/yW6KYWhW)  
+[![agent.png](https://i.postimg.cc/PxtP9bN8/agent.png)](https://postimg.cc/SXvSzM6y)  
+
