@@ -821,6 +821,15 @@ sub Login {
     # if not in PreLogin mode, show normal login form
     else {
 
+        #begin agent recaptcha
+        if ($ConfigObject->Get('GoogleCaptcha::AgentPortalLoginEnabled'))
+        {
+            my $SiteKey = $ConfigObject->Get('GoogleCaptcha::SiteKey');		
+            my $rc = Captcha::reCAPTCHA::V2->new;
+            $Param{reCAPTCHAagent} = $rc->html($SiteKey, { theme => 'dark' }, { size => 'compact' }, { type => 'image' }); #public key
+        }    
+        #end agent recaptcha
+        
         $Self->Block(
             Name => 'LoginBox',
             Data => \%Param,
