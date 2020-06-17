@@ -14,8 +14,9 @@
 			#begin recaptcha  
 			CODE  
 			#end recaptcha  
+			
+- Instructions:  
 	
-
 			1. create and configure captcha V2 https://www.google.com/recaptcha/admin  
 			2. Install Captcha::reCAPTCHA::V2 via cpan  
 			3. Enabled Agent Captcha module at Admin > System Configuration > GoogleCaptcha::AgentPortalLoginEnabled  (For agent portal)  
