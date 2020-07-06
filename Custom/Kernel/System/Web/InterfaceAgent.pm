@@ -1,5 +1,5 @@
 # --
-# Copyright (C) 2001-2019 OTRS AG, https://otrs.com/
+# Copyright (C) 2001-2020 OTRS AG, https://otrs.com/
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (GPL). If you
@@ -133,8 +133,8 @@ sub Run {
     my %Param;
 
     # get session id
-    $Param{SessionName} = $ConfigObject->Get('SessionName') || 'SessionID';
-    $Param{SessionID} = $ParamObject->GetParam( Param => $Param{SessionName} ) || '';
+    $Param{SessionName} = $ConfigObject->Get('SessionName')                      || 'SessionID';
+    $Param{SessionID}   = $ParamObject->GetParam( Param => $Param{SessionName} ) || '';
 
     # drop old session id (if exists)
     $QueryString =~ s/(\?|&|;|)$Param{SessionName}(=&|=;|=.+?&|=.+?$)/;/g;
@@ -242,7 +242,7 @@ sub Run {
             Param => 'TwoFactorToken',
             Raw   => 1
         ) || '';
-        
+
         #begin agent recaptcha
         if ($ConfigObject->Get('GoogleCaptcha::AgentPortalLoginEnabled'))
         {
@@ -437,7 +437,7 @@ sub Run {
             },
         );
         my $OTRSUserTimeZoneOffset = $DateTimeObject->Format( Format => '%{offset}' ) / 60;
-        my $BrowserTimeZoneOffset = ( $ParamObject->GetParam( Param => 'TimeZoneOffset' ) || 0 ) * -1;
+        my $BrowserTimeZoneOffset  = ( $ParamObject->GetParam( Param => 'TimeZoneOffset' ) || 0 ) * -1;
 
         # TimeZoneOffsetDifference contains the difference of the time zone offset between
         # the user's OTRS time zone setting and the one reported by the user's browser.
@@ -657,6 +657,25 @@ sub Run {
 
         # get user login by token
         if ( !$User && $Token ) {
+
+            # Prevent extracting password reset token character-by-character via wildcard injection
+            # The wild card characters "%" and "_" could be used to match arbitrary character.
+            if ( $Token !~ m{\A (?: [a-zA-Z] | \d )+ \z}xms ) {
+
+                # Security: pretend that password reset instructions were actually sent to
+                #   make sure that users cannot find out valid usernames by
+                #   just trying and checking the result message.
+                $LayoutObject->Print(
+                    Output => \$LayoutObject->Login(
+                        Title       => 'Login',
+                        Message     => Translatable('Sent password reset instructions. Please check your email.'),
+                        MessageType => 'Success',
+                        %Param,
+                    ),
+                );
+                return;
+            }
+
             my %UserList = $UserObject->SearchPreferences(
                 Key   => 'UserToken',
                 Value => $Token,
@@ -1147,26 +1166,37 @@ sub Run {
                 $QueryString = 'Action=' . $Param{Action} . '&Subaction=' . $Param{Subaction};
             }
             my $File = $ConfigObject->Get('PerformanceLog::File');
-            ## no critic
-            if ( open my $Out, '>>', $File ) {
-                ## use critic
-                print $Out time()
-                    . '::Agent::'
-                    . ( time() - $Self->{PerformanceLogStart} )
-                    . "::$UserData{UserLogin}::$QueryString\n";
-                close $Out;
 
-                $Kernel::OM->Get('Kernel::System::Log')->Log(
-                    Priority => 'debug',
-                    Message  => "Response::Agent: "
+            # Write to PerformanceLog file only if it is smaller than size limit (see bug#14747).
+            if ( -s $File < ( 1024 * 1024 * $ConfigObject->Get('PerformanceLog::FileMax') ) ) {
+
+                ## no critic
+                if ( open my $Out, '>>', $File ) {
+                    ## use critic
+                    print $Out time()
+                        . '::Agent::'
                         . ( time() - $Self->{PerformanceLogStart} )
-                        . "s taken (URL:$QueryString:$UserData{UserLogin})",
-                );
+                        . "::$UserData{UserLogin}::$QueryString\n";
+                    close $Out;
+
+                    $Kernel::OM->Get('Kernel::System::Log')->Log(
+                        Priority => 'debug',
+                        Message  => "Response::Agent: "
+                            . ( time() - $Self->{PerformanceLogStart} )
+                            . "s taken (URL:$QueryString:$UserData{UserLogin})",
+                    );
+                }
+                else {
+                    $Kernel::OM->Get('Kernel::System::Log')->Log(
+                        Priority => 'error',
+                        Message  => "Can't write $File: $!",
+                    );
+                }
             }
             else {
                 $Kernel::OM->Get('Kernel::System::Log')->Log(
                     Priority => 'error',
-                    Message  => "Can't write $File: $!",
+                    Message => "PerformanceLog file '$File' is too large, you need to reset it in PerformanceLog page!",
                 );
             }
         }
