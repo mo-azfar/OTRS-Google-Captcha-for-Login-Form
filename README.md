@@ -1,5 +1,6 @@
 # Znuny-Google-Captcha
-- Google reCaptcha at Znuny agent and customer portal (login form)		
+- Google reCaptcha at Znuny agent and customer portal (login form)	
+- For Znuny 7.0.x	
 - Modification files (based on Znuny 7.0.9) has been tag with :
 
 	
