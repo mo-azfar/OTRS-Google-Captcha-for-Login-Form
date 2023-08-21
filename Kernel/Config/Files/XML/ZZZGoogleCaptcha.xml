@@ -9,7 +9,7 @@
                 <Item Key="Templates">
                     <Hash>
                         <Item Key="Login">0</Item>
-						<Item Key="CustomerLogin">0</Item>
+                        <Item Key="CustomerLogin">0</Item>
                     </Hash>
                 </Item>
             </Hash>
