@@ -1,5 +1,7 @@
 # --
-# Copyright (C) 2001-2020 OTRS AG, https://otrs.com/
+# Copyright (C) 2001-2021 OTRS AG, https://otrs.com/
+# Copyright (C) 2021 Znuny GmbH, https://znuny.org/
+# Copyright (C) 2023 mo-azfar,https://github.com/mo-azfar
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (GPL). If you
@@ -10,9 +12,7 @@ package Kernel::System::Web::InterfaceCustomer;
 
 use strict;
 use warnings;
-#begin recaptcha
-use Captcha::reCAPTCHA::V2;
-#end recaptcha
+
 use Kernel::System::DateTime;
 use Kernel::System::Email;
 use Kernel::System::VariableCheck qw(IsArrayRefWithData IsHashRefWithData);
@@ -26,13 +26,12 @@ our @ObjectDependencies = (
     'Kernel::System::CustomerGroup',
     'Kernel::System::CustomerUser',
     'Kernel::System::DB',
-    'Kernel::System::Group',
+    'Kernel::System::DateTime',
     'Kernel::System::Log',
     'Kernel::System::Main',
     'Kernel::System::Scheduler',
-    'Kernel::System::DateTime',
-    'Kernel::System::Web::Request',
     'Kernel::System::Valid',
+    'Kernel::System::Web::Request',
 );
 
 =head1 NAME
@@ -242,30 +241,35 @@ sub Run {
             Param => 'TwoFactorToken',
             Raw   => 1
         ) || '';
-        
-        #begin recaptcha
-        if ($ConfigObject->Get('GoogleCaptcha::CustomerPortalLoginEnabled'))
-        {
+
+		# --
+		# Customer Google Captcha
+		# --
+        if ( $ConfigObject->Get('Frontend::Output::FilterElementPost')->{ShowGoogleCaptcha}->{Templates}->{CustomerLogin} )
+		{
+			use Captcha::reCAPTCHA::V2;
             my $rc = Captcha::reCAPTCHA::V2->new;
-            my $SecretKey = $ConfigObject->Get('GoogleCaptcha::SecretKey');		
+            my $SecretKey = $ConfigObject->Get('GoogleCaptcha::SecretKey');			
             my $response = $ParamObject->GetParam(Param => 'g-recaptcha-response') || '';
             my $result = $rc->verify($SecretKey, $response);
     
             if ( !$result->{success} ) 
             {
-            #my $c_error = $result->{error_codes}->[0];
-            # show need user data error message
-            $Kernel::OM->Get('Kernel::Output::HTML::Layout')->Print(
-                Output => \$Kernel::OM->Get('Kernel::Output::HTML::Layout')->CustomerLogin(
-                    Title   => 'Error',
-                    Message => Translatable('reCAPTCHA entry failed. Please try again.'),
-                ),
-            );
-            return;
+				#my $c_error = $result->{error_codes}->[0];
+				# show need user data error message
+				$Kernel::OM->Get('Kernel::Output::HTML::Layout')->Print(
+					Output => \$Kernel::OM->Get('Kernel::Output::HTML::Layout')->Login(
+						Title   => 'Login',
+						Message => Translatable("reCAPTCHA entry failed. $result->{error_codes}->[0]"),
+						MessageType => 'Error',
+					),
+				);
+			
+				return;
             }
-        }    
-        #end recaptcha
-        
+		} 
+        # --
+		
         # create AuthObject
         my $AuthObject = $Kernel::OM->Get('Kernel::System::CustomerAuth');
 
@@ -674,8 +678,8 @@ sub Run {
                 || 'ERROR: CustomerPanelBodyLostPasswordToken is missing!';
             my $Subject = $ConfigObject->Get('CustomerPanelSubjectLostPasswordToken')
                 || 'ERROR: CustomerPanelSubjectLostPasswordToken is missing!';
-            for ( sort keys %UserData ) {
-                $Body =~ s/<OTRS_$_>/$UserData{$_}/gi;
+            for my $UserKey ( sort keys %UserData ) {
+                $Body =~ s/<OTRS_$UserKey>/$UserData{$UserKey}/gi;
             }
             my $Sent = $EmailObject->Send(
                 To       => $UserData{UserEmail},
@@ -744,8 +748,8 @@ sub Run {
             || 'New Password is: <OTRS_NEWPW>';
         my $Subject = $ConfigObject->Get('CustomerPanelSubjectLostPassword')
             || 'New Password!';
-        for ( sort keys %UserData ) {
-            $Body =~ s/<OTRS_$_>/$UserData{$_}/gi;
+        for my $UserKey ( sort keys %UserData ) {
+            $Body =~ s/<OTRS_$UserKey>/$UserData{$UserKey}/gi;
         }
         my $Sent = $EmailObject->Send(
             To       => $UserData{UserEmail},
@@ -939,8 +943,8 @@ sub Run {
             || 'No Config Option found!';
         my $Subject = $ConfigObject->Get('CustomerPanelSubjectNewAccount')
             || 'New OTRS Account!';
-        for ( sort keys %GetParams ) {
-            $Body =~ s/<OTRS_$_>/$GetParams{$_}/gi;
+        for my $Key ( sort keys %GetParams ) {
+            $Body =~ s/<OTRS_$Key>/$GetParams{$Key}/gi;
         }
 
         # send account info
@@ -1264,11 +1268,7 @@ sub Run {
         my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
 
         # update last request time
-        if (
-            !$ParamObject->IsAJAXRequest()
-            || $Param{Action} eq 'CustomerVideoChat'
-            )
-        {
+        if ( !$ParamObject->IsAJAXRequest() ) {
             my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
             $SessionObject->UpdateSessionID(

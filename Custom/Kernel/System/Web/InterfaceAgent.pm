@@ -1,5 +1,7 @@
 # --
-# Copyright (C) 2001-2020 OTRS AG, https://otrs.com/
+# Copyright (C) 2001-2021 OTRS AG, https://otrs.com/
+# Copyright (C) 2021 Znuny GmbH, https://znuny.org/
+# Copyright (C) 2023 mo-azfar,https://github.com/mo-azfar
 # --
 # This software comes with ABSOLUTELY NO WARRANTY. For details, see
 # the enclosed file COPYING for license information (GPL). If you
@@ -10,9 +12,7 @@ package Kernel::System::Web::InterfaceAgent;
 
 use strict;
 use warnings;
-#begin agent recaptcha
-use Captcha::reCAPTCHA::V2;
-#end agent recaptcha
+
 use Kernel::Language qw(Translatable);
 use Kernel::System::DateTime;
 
@@ -242,31 +242,35 @@ sub Run {
             Param => 'TwoFactorToken',
             Raw   => 1
         ) || '';
-
-        #begin agent recaptcha
-        if ($ConfigObject->Get('GoogleCaptcha::AgentPortalLoginEnabled'))
-        {
+		
+		# --
+		# Agent Google Captcha
+		# --
+        if ( $ConfigObject->Get('Frontend::Output::FilterElementPost')->{ShowGoogleCaptcha}->{Templates}->{Login} )
+		{
+			use Captcha::reCAPTCHA::V2;
             my $rc = Captcha::reCAPTCHA::V2->new;
-            my $SecretKey = $ConfigObject->Get('GoogleCaptcha::SecretKey');		
+            my $SecretKey = $ConfigObject->Get('GoogleCaptcha::SecretKey');			
             my $response = $ParamObject->GetParam(Param => 'g-recaptcha-response') || '';
             my $result = $rc->verify($SecretKey, $response);
     
             if ( !$result->{success} ) 
             {
-            #my $c_error = $result->{error_codes}->[0];
-            # show need user data error message
-            $Kernel::OM->Get('Kernel::Output::HTML::Layout')->Print(
-                Output => \$Kernel::OM->Get('Kernel::Output::HTML::Layout')->Login(
-                    Title   => 'Login',
-                    Message => Translatable('reCAPTCHA entry failed. Please try again.'),
-                    MessageType => 'Error',
-                ),
-            );
-            return;
+				#my $c_error = $result->{error_codes}->[0];
+				# show need user data error message
+				$Kernel::OM->Get('Kernel::Output::HTML::Layout')->Print(
+					Output => \$Kernel::OM->Get('Kernel::Output::HTML::Layout')->Login(
+						Title   => 'Login',
+						Message => Translatable("reCAPTCHA entry failed. $result->{error_codes}->[0]"),
+						MessageType => 'Error',
+					),
+				);
+			
+				return;
             }
-        }    
-        #end agent recaptcha
-        
+		} 
+        # --
+		
         # create AuthObject
         my $AuthObject = $Kernel::OM->Get('Kernel::System::Auth');
 
@@ -488,48 +492,6 @@ sub Run {
             },
         );
 
-        # Check if Chat is active
-        if ( $Kernel::OM->Get('Kernel::Config')->Get('ChatEngine::Active') ) {
-            my $ChatReceivingAgentsGroup
-                = $Kernel::OM->Get('Kernel::Config')->Get('ChatEngine::PermissionGroup::ChatReceivingAgents');
-
-            my $ChatReceivingAgentsGroupPermission = $Kernel::OM->Get('Kernel::System::Group')->PermissionCheck(
-                UserID    => $UserData{UserID},
-                GroupName => $ChatReceivingAgentsGroup,
-                Type      => 'rw',
-            );
-
-            if (
-                $UserData{UserID} != -1
-                && $ChatReceivingAgentsGroup
-                && $ChatReceivingAgentsGroupPermission
-                && $Kernel::OM->Get('Kernel::Config')->Get('Ticket::Agent::UnavailableForExternalChatsOnLogin')
-                )
-            {
-                # Get user preferences
-                my %Preferences = $Kernel::OM->Get('Kernel::System::User')->GetPreferences(
-                    UserID => $UserData{UserID},
-                );
-
-                if ( $Preferences{ChatAvailability} && $Preferences{ChatAvailability} == 2 ) {
-
-                    # User is available for external chats. Set his availability to internal only.
-                    $Kernel::OM->Get('Kernel::System::User')->SetPreferences(
-                        Key    => 'ChatAvailability',
-                        Value  => '1',
-                        UserID => $UserData{UserID},
-                    );
-
-                    # Set ChatAvailabilityNotification to display notification in agent interface (only once)
-                    $Kernel::OM->Get('Kernel::System::User')->SetPreferences(
-                        Key    => 'ChatAvailabilityNotification',
-                        Value  => '1',
-                        UserID => $UserData{UserID},
-                    );
-                }
-            }
-        }
-
         # redirect with new session id and old params
         # prepare old redirect URL -- do not redirect to Login or Logout (loop)!
         if ( $Param{RequestedURL} =~ /Action=(Logout|Login|LostPassword|PreLogin)/ ) {
@@ -734,8 +696,8 @@ sub Run {
                 || 'ERROR: NotificationBodyLostPasswordToken is missing!';
             my $Subject = $ConfigObject->Get('NotificationSubjectLostPasswordToken')
                 || 'ERROR: NotificationSubjectLostPasswordToken is missing!';
-            for ( sort keys %UserData ) {
-                $Body =~ s/<OTRS_$_>/$UserData{$_}/gi;
+            for my $Key ( sort keys %UserData ) {
+                $Body =~ s/<OTRS_$Key>/$UserData{$Key}/gi;
             }
             my $Sent = $EmailObject->Send(
                 To       => $UserData{UserEmail},
@@ -793,8 +755,8 @@ sub Run {
             || 'New Password is: <OTRS_NEWPW>';
         my $Subject = $ConfigObject->Get('NotificationSubjectLostPassword')
             || 'New Password!';
-        for ( sort keys %UserData ) {
-            $Body =~ s/<OTRS_$_>/$UserData{$_}/gi;
+        for my $Key ( sort keys %UserData ) {
+            $Body =~ s/<OTRS_$Key>/$UserData{$Key}/gi;
         }
         my $Sent = $EmailObject->Send(
             To       => $UserData{UserEmail},
@@ -1024,6 +986,14 @@ sub Run {
             }
             if ( !$Param{AccessRo} && !$Param{AccessRw} || !$Param{AccessRo} && $Param{AccessRw} ) {
 
+                # put '%Param' and '%UserData' into LayoutObject
+                $Kernel::OM->ObjectParamAdd(
+                    'Kernel::Output::HTML::Layout' => {
+                        %Param,
+                        %UserData,
+                        ModuleReg => $ModuleReg,
+                    },
+                );
                 print $Kernel::OM->Get('Kernel::Output::HTML::Layout')->NoPermission(
                     Message => Translatable('No Permission to use this frontend module!')
                 );
@@ -1042,18 +1012,7 @@ sub Run {
         $Kernel::OM->ObjectsDiscard( Objects => ['Kernel::Output::HTML::Layout'] );
 
         # update last request time
-        if (
-            !$ParamObject->IsAJAXRequest()
-            || $Param{Action} eq 'AgentVideoChat'
-            ||
-            (
-                $Param{Action} eq 'AgentChat'
-                &&
-                $Param{Subaction} ne 'ChatGetOpenRequests' &&
-                $Param{Subaction} ne 'ChatMonitorCheck'
-            )
-            )
-        {
+        if ( !$ParamObject->IsAJAXRequest() ) {
             my $DateTimeObject = $Kernel::OM->Create('Kernel::System::DateTime');
 
             $SessionObject->UpdateSessionID(
