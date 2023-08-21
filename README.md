@@ -2,7 +2,8 @@
 - Google reCaptcha at Znuny agent and customer portal (login form)		
 - Modification files (based on Znuny 7.0.9) has been tag with :
 
-	For Agent Portal  
+	
+	For Agent Portal  (InterfaceAgent.pm)
 	
 			# --
 			# Agent Google Captcha
@@ -10,7 +11,7 @@
 			CODE  
 			# -- 
 	
-	For Customer Portal  
+	For Customer Portal  (InterfaceCustomer.pm)
 		
 			# --
 			# Customer Google Captcha
@@ -20,7 +21,7 @@
 			
 - Instructions:  
 	
-			1. create and configure captcha V2 https://www.google.com/recaptcha/admin  
+			1. Create and configure captcha V2 https://www.google.com/recaptcha/admin  
 			2. Install Captcha::reCAPTCHA::V2 via cpan  
 			3. Enable Captcha for Agent and Customer at Admin > System Configuration > Frontend::Output::FilterElementPost###ShowGoogleCaptcha  
 			
