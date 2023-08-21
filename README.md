@@ -1,4 +1,4 @@
-# OTRS-Google-Captcha-for-Login-Form
+# Znuny-Google-Captcha
 - Google reCaptcha at Znuny agent and customer portal (login form)		
 - Modification files (based on Znuny 7.0.9) has been tag with :
 
